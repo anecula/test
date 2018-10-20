@@ -1,0 +1,90 @@
+---
+  - name: Provision an EC2 Instance
+    hosts: local
+    connection: local
+    gather_facts: False
+    tags: provisioning
+    # Necessary Variables for creating the EC2 Instance
+    vars:
+      instance_type: t2.micro
+      security_group: ansible-webserver # the security group
+      image: ami-0773391ae604c49a4 # Ubunut 16.04
+      keypair: ssh-user-key # Creating new SSH KEY, The private is aws.pem
+      region: eu-west-1 # the Region
+      count: 1
+
+    # This part is creating ssh key and save it local aws.pem
+    tasks:
+      - name: Create a new EC2 key
+        ec2_key:
+            name: "{{ keypair  }}"
+            region: "{{ region }}"
+        register: ec2_key_result
+
+      - name: Save private key
+        copy: content="{{ ec2_key_result.key.private_key }}" dest="./aws.pem" mode=0600
+        when: ec2_key_result.changed
+
+
+      - name: Create a security group
+        local_action: 
+          module: ec2_group
+          name: "{{ security_group }}"
+          description: Security Group for webserver Servers
+          region: "{{ region }}"
+          rules:
+            - proto: tcp
+              from_port: 22
+              to_port: 22
+              cidr_ip: 0.0.0.0/0
+            - proto: tcp
+              from_port: 80
+              to_port: 80
+              cidr_ip: 0.0.0.0/0
+            - proto: tcp
+              from_port: 443
+              to_port: 443
+              cidr_ip: 0.0.0.0/0
+          rules_egress:
+            - proto: all
+              cidr_ip: 0.0.0.0/0
+        register: basic_firewall
+
+      - name: Launch the new EC2 Instance
+        local_action: ec2 
+                      group={{ security_group }} 
+                      instance_type={{ instance_type}} 
+                      image={{ image }} 
+                      wait=true 
+                      region={{ region }} 
+                      keypair={{ keypair }}
+                      count={{count}}
+        register: ec2
+
+      - name: Add the newly created EC2 
+        local_action: lineinfile 
+                      dest="./hosts" 
+                      regexp={{ item.public_ip }}
+                      insertafter="[webserver]" line="{{ item.public_ip }} ansible_python_interpreter=/usr/bin/python3"
+        with_items: '{{ ec2.instances }}'
+
+
+      - name: Wait for SSH to come up
+        local_action: wait_for 
+                      host={{ item.public_ip }} 
+                      port=22 
+                      state=started
+        with_items: '{{ ec2.instances }}'
+
+
+
+      - name: Add tag to Instance(s)
+        local_action: ec2_tag resource={{ item.id }} region={{ region }} state=present
+        with_items: '{{ ec2.instances }}'
+        args:
+          tags:  # For monitoring the cost by python script monitor.py
+            PROVIDEDBY: ANSIBLE
+            PRODUCT: WEBSERVER
+      # This Part to install python 
+      - name: install python 
+        raw: test -e /usr/bin/python || (sudo apt -y update && sudo apt install -y python-minimal)

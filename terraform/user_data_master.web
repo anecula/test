@@ -1,0 +1,13 @@
+#!/bin/bash
+LANG=en_US.UTF-8
+apt-get update
+apt-get install -y rabbitmq-server
+sudo service rabbitmq-server restart
+sudo rabbitmq-plugins enable rabbitmq_management
+sudo rabbitmqctl add_user admin password
+sudo rabbitmqctl set_user_tags admin administrator
+sudo rabbitmqctl set_permissions -p / admin ".*" ".*" ".*"
+sudo service rabbitmq-server stop
+sudo echo "AFYDPNYXGNARCABLNENP" > /var/lib/rabbitmq/.erlang.cookie
+sudo killall -u rabbitmq
+sudo service rabbitmq-server start

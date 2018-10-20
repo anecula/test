@@ -1,0 +1,50 @@
+- hosts: webserver
+  tasks:
+    - name: ensure nginx is at the latest version
+      apt: name=nginx state=latest
+      sudo: yes
+    - name: start nginx
+      service:
+          name: nginx
+          state: started
+
+ 
+    - name: create general params
+      sudo: yes
+      copy:
+        src:    files/nginx.conf
+        dest:   /etc/nginx/nginx.conf
+        owner:  root
+        mode:   0644
+      notify:   restart nginx
+
+    - name: create welcome page
+      sudo: yes
+      copy:
+        src:    files/index.html
+        dest:   /var/www/html/index.html
+        owner:  root
+        mode:   0644
+
+    - name: create sites folder
+      sudo: yes
+      file:
+        path:   /etc/nginx/sites
+        state:  directory
+        mode:   0755
+
+    - name: config files
+      sudo: yes
+      copy:
+        src:    files/test-instance.example.com
+        dest:   /etc/nginx/sites/test-instance.example.com
+        owner:  root
+        mode:   0644
+      notify:   restart nginx
+
+  handlers:
+    - name: restart nginx
+      sudo: yes
+      service:
+        name:   nginx
+        state:  restarted

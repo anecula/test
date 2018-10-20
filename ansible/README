@@ -1,0 +1,32 @@
+
+Required AWS ACCESS KEY and SECRET KEY
+
+export AWS_ACCESS_KEY_ID=XXXX
+export AWS_SECRET_ACCESS_KEY=XXXX 
+
+
+# To Create new ec2 node, run the following command
+
+ansible-playbook -i ./hosts ec2.yaml 
+
+# To ACCESS the ec2 node
+
+ssh -i aws.pem ubuntu@<ip of the node> ## will be added to hosts file with aws.pem (private key)
+
+
+# To run linux commands on the ec2
+
+ansible --private-key=aws.pem webserver -u ubuntu  -a "uptime" -i hosts 
+
+# To run nginx playbook
+
+ansible-playbook -vvvv --private-key=aws.pem nginx.yaml  -i hosts -u ubuntu
+
+
+# To check test-instance.example.com , add to your /etc/hosts for personal pc to the ip of ec2 instance
+XX.XX.XX.XX test-instance.example.com
+
+# To Run monitor.py script you need to install boto3, the default region is eu-west-1  
+pip install boto3
+
+python monitor.py

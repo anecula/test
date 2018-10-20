@@ -1,0 +1,57 @@
+---
+
+image: ubuntu:latest
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  TERRAFORM_VER: '0.10.6'
+
+stages:
+    - validate
+    - plan
+    - deploy    
+    - verify-deploy    
+
+before_script:
+    - 'apt-get update -qq && apt-get install -qq -y openssh-client git curl unzip > /dev/null'
+    - echo -e "\n" | ssh-keygen -N "" &> /dev/null
+    - 'mkdir downloads && cd downloads'
+    - 'curl -s -O https://releases.hashicorp.com/terraform/${TERRAFORM_VER}/terraform_${TERRAFORM_VER}_linux_amd64.zip'
+    - echo "Installing Terraform"
+    - 'unzip terraform_${TERRAFORM_VER}_linux_amd64.zip && mv terraform /usr/local/bin/'
+
+validate:
+  stage: validate
+  script:
+    - echo "Terraform Validate"
+    - terraform validate
+
+plan:
+  stage: plan
+  script:
+    - echo "Terraform Plan"
+    - terraform plan -out "planfile"
+  dependencies:
+    - validate
+  artifacts:
+    paths:
+      - planfile
+
+deploy:
+  stage: deploy
+  script:
+    - echo "Deploy Resources"
+    - terraform apply -input=false "planfile" 
+  when: manual 
+  dependencies:
+    - plan
+
+#How would test whether the templates are provisioning the cluster correctly?
+
+verify-deploy:
+  stage: verify-deploy
+  script:
+    - echo "Verify Deployment"
+    - 'for i in $(terraform show | grep public_dns |egrep -m2 -oe "ec2-.*") ; do echo "EC2 Public URL $i"; curl -m 5 -I $i:15672 ; if [ \$? != 0 ]; then echo "This URL $i has an issue"; echo "You have an issue with deployment $i"; exit 2 ;fi ;done'
+  dependencies:
+    - deploy
